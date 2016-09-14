@@ -37,23 +37,23 @@ import org.apache.spark.scheduler.cluster.CoarseGrainedSchedulerBackend
 import org.apache.spark.util.Utils
 
 /**
- * A SchedulerBackend that runs tasks on Mesos, but uses "coarse-grained" tasks, where it holds
- * onto each Mesos node for the duration of the Spark job instead of relinquishing cores whenever
- * a task is done. It launches Spark tasks within the coarse-grained Mesos tasks using the
- * CoarseGrainedSchedulerBackend mechanism. This class is useful for lower and more predictable
- * latency.
- *
- * Unfortunately this has a bit of duplication from MesosSchedulerBackend, but it seems hard to
- * remove this.
- */
+  * A SchedulerBackend that runs tasks on Mesos, but uses "coarse-grained" tasks, where it holds
+  * onto each Mesos node for the duration of the Spark job instead of relinquishing cores whenever
+  * a task is done. It launches Spark tasks within the coarse-grained Mesos tasks using the
+  * CoarseGrainedSchedulerBackend mechanism. This class is useful for lower and more predictable
+  * latency.
+  *
+  * Unfortunately this has a bit of duplication from MesosSchedulerBackend, but it seems hard to
+  * remove this.
+  */
 private[spark] class CoarseMesosSchedulerBackend(
-    scheduler: TaskSchedulerImpl,
-    sc: SparkContext,
-    master: String,
-    securityManager: SecurityManager)
+                                                  scheduler: TaskSchedulerImpl,
+                                                  sc: SparkContext,
+                                                  master: String,
+                                                  securityManager: SecurityManager)
   extends CoarseGrainedSchedulerBackend(scheduler, sc.env.rpcEnv)
-  with MScheduler
-  with MesosSchedulerUtils {
+    with MScheduler
+    with MesosSchedulerUtils {
 
   val MAX_SLAVE_FAILURES = 2     // Blacklist a slave after this many failures
 
@@ -78,15 +78,15 @@ private[spark] class CoarseMesosSchedulerBackend(
   val failuresBySlaveId: HashMap[String, Int] = new HashMap[String, Int]
 
   /**
-   * The total number of executors we aim to have. Undefined when not using dynamic allocation
-   * and before the ExecutorAllocatorManager calls [[doRequestTotalExecutors]].
-   */
+    * The total number of executors we aim to have. Undefined when not using dynamic allocation
+    * and before the ExecutorAllocatorManager calls [[doRequestTotalExecutors]].
+    */
   private var executorLimitOption: Option[Int] = None
 
   /**
-   *  Return the current executor limit, which may be [[Int.MaxValue]]
-   *  before properly initialized.
-   */
+    *  Return the current executor limit, which may be [[Int.MaxValue]]
+    *  before properly initialized.
+    */
   private[mesos] def executorLimit: Int = executorLimitOption.getOrElse(Int.MaxValue)
 
   private val pendingRemovedSlaveIds = new HashSet[String]
@@ -99,11 +99,11 @@ private[spark] class CoarseMesosSchedulerBackend(
 
   // Offer constraints
   private val slaveOfferConstraints =
-    parseConstraintString(sc.conf.get("spark.mesos.constraints", ""))
+  parseConstraintString(sc.conf.get("spark.mesos.constraints", ""))
 
   // reject offers with mismatched constraints in seconds
   private val rejectOfferDurationForUnmetConstraints =
-    getRejectOfferDurationForUnmetConstraints(sc)
+  getRejectOfferDurationForUnmetConstraints(sc)
 
   // A client for talking to the external shuffle service, if it is a
   private val mesosExternalShuffleClient: Option[MesosExternalShuffleClient] = {
@@ -183,11 +183,11 @@ private[spark] class CoarseMesosSchedulerBackend(
       command.setValue(
         "%s \"%s\" org.apache.spark.executor.CoarseGrainedExecutorBackend"
           .format(prefixEnv, runScript) +
-        s" --driver-url $driverURL" +
-        s" --executor-id ${offer.getSlaveId.getValue}" +
-        s" --hostname ${offer.getHostname}" +
-        s" --cores $numCores" +
-        s" --app-id $appId")
+          s" --driver-url $driverURL" +
+          s" --executor-id ${offer.getSlaveId.getValue}" +
+          s" --hostname ${offer.getHostname}" +
+          s" --cores $numCores" +
+          s" --app-id $appId")
     } else {
       // Grab everything to the first '.'. We'll use that and '*' to
       // glob the directory "correctly".
@@ -195,12 +195,12 @@ private[spark] class CoarseMesosSchedulerBackend(
       val executorId = sparkExecutorId(offer.getSlaveId.getValue, taskId.toString)
       command.setValue(
         s"cd $basename*; $prefixEnv " +
-         "./bin/spark-class org.apache.spark.executor.CoarseGrainedExecutorBackend" +
-        s" --driver-url $driverURL" +
-        s" --executor-id $executorId" +
-        s" --hostname ${offer.getHostname}" +
-        s" --cores $numCores" +
-        s" --app-id $appId")
+          "./bin/spark-class org.apache.spark.executor.CoarseGrainedExecutorBackend" +
+          s" --driver-url $driverURL" +
+          s" --executor-id $executorId" +
+          s" --hostname ${offer.getHostname}" +
+          s" --cores $numCores" +
+          s" --app-id $appId")
       command.addUris(CommandInfo.URI.newBuilder().setValue(uri.get))
     }
 
@@ -240,9 +240,9 @@ private[spark] class CoarseMesosSchedulerBackend(
   override def reregistered(d: SchedulerDriver, masterInfo: MasterInfo) {}
 
   /**
-   * Method called by Mesos to offer resources on slaves. We respond by launching an executor,
-   * unless we've already launched more than we wanted to.
-   */
+    * Method called by Mesos to offer resources on slaves. We respond by launching an executor,
+    * unless we've already launched more than we wanted to.
+    */
   override def resourceOffers(d: SchedulerDriver, offers: JList[Offer]) {
     stateLock.synchronized {
       val filters = Filters.newBuilder().setRefuseSeconds(5).build()
@@ -255,11 +255,11 @@ private[spark] class CoarseMesosSchedulerBackend(
         val id = offer.getId.getValue
         if (meetsConstraints) {
           if (taskIdToSlaveId.size < executorLimit &&
-              totalCoresAcquired < maxCores &&
-              mem >= calculateTotalMemory(sc) &&
-              cpus >= 1 &&
-              failuresBySlaveId.getOrElse(slaveId, 0) < MAX_SLAVE_FAILURES &&
-              !slaveIdsWithExecutors.contains(slaveId)) {
+            totalCoresAcquired < maxCores &&
+            mem >= calculateTotalMemory(sc) &&
+            cpus >= 1 &&
+            failuresBySlaveId.getOrElse(slaveId, 0) < MAX_SLAVE_FAILURES &&
+            !slaveIdsWithExecutors.contains(slaveId)) {
             // Launch an executor on the slave
             val cpusToUse = math.min(cpus, maxCores - totalCoresAcquired)
             totalCoresAcquired += cpusToUse
@@ -269,9 +269,13 @@ private[spark] class CoarseMesosSchedulerBackend(
             coresByTaskId(taskId) = cpusToUse
             // Gather cpu resources from the available resources and use them in the task.
             val (remainingResources, cpuResourcesToUse) =
-              partitionResources(offer.getResourcesList, "cpus", cpusToUse)
+            partitionResources(offer.getResourcesList, "cpus", cpusToUse)
             val (_, memResourcesToUse) =
               partitionResources(remainingResources.asJava, "mem", calculateTotalMemory(sc))
+            val (_, gpuResourcesToUse) =
+              partitionResources(offer.getResourcesList, "gpus", cpusToUse)
+
+
             val taskBuilder = MesosTaskInfo.newBuilder()
               .setTaskId(TaskID.newBuilder().setValue(taskId.toString).build())
               .setSlaveId(offer.getSlaveId)
@@ -280,10 +284,22 @@ private[spark] class CoarseMesosSchedulerBackend(
               .addAllResources(cpuResourcesToUse.asJava)
               .addAllResources(memResourcesToUse.asJava)
 
+            val gpus = getResource(offer.getResourcesList, "gpus").toInt
+            if (gpus > 0) {
+              val (_, gpuResourcesToUse) =
+                partitionResources(offer.getResourcesList, "gpus", gpus)
+              taskBuilder.addAllResources(gpuResourcesToUse.asJava)
+            }
+
+
+
+
             sc.conf.getOption("spark.mesos.executor.docker.image").foreach { image =>
               MesosSchedulerBackendUtil
                 .setupContainerBuilderDockerInfo(image, sc.conf, taskBuilder.getContainerBuilder())
             }
+
+
 
             // Accept the offer and launch the task
             logDebug(s"Accepting offer: $id with attributes: $offerAttributes mem: $mem cpu: $cpus")
@@ -300,7 +316,7 @@ private[spark] class CoarseMesosSchedulerBackend(
           // This offer does not meet constraints. We don't need to see it again.
           // Decline the offer for a long period of time.
           logDebug(s"Declining offer: $id with attributes: $offerAttributes mem: $mem cpu: $cpus"
-              + s" for $rejectOfferDurationForUnmetConstraints seconds")
+            + s" for $rejectOfferDurationForUnmetConstraints seconds")
           d.declineOffer(offer.getId, Filters.newBuilder()
             .setRefuseSeconds(rejectOfferDurationForUnmetConstraints).build())
         }
@@ -320,8 +336,8 @@ private[spark] class CoarseMesosSchedulerBackend(
       // this application when the driver exits. There is currently not a great way to detect
       // this through Mesos, since the shuffle services are set up independently.
       if (TaskState.fromMesos(state).equals(TaskState.RUNNING) &&
-          slaveIdToHost.contains(slaveId) &&
-          shuffleServiceEnabled) {
+        slaveIdToHost.contains(slaveId) &&
+        shuffleServiceEnabled) {
         assume(mesosExternalShuffleClient.isDefined,
           "External shuffle client was not instantiated even though shuffle service is enabled.")
         // TODO: Remove this and allow the MesosExternalShuffleService to detect
@@ -329,7 +345,7 @@ private[spark] class CoarseMesosSchedulerBackend(
         val externalShufflePort = conf.getInt("spark.shuffle.service.port", 7337)
         val hostname = slaveIdToHost.remove(slaveId).get
         logDebug(s"Connecting to shuffle service on slave $slaveId, " +
-            s"host $hostname, port $externalShufflePort for app ${conf.getAppId}")
+          s"host $hostname, port $externalShufflePort for app ${conf.getAppId}")
         mesosExternalShuffleClient.get
           .registerDriverWithShuffleService(hostname, externalShufflePort)
       }
@@ -348,7 +364,7 @@ private[spark] class CoarseMesosSchedulerBackend(
           failuresBySlaveId(slaveId) = failuresBySlaveId.getOrElse(slaveId, 0) + 1
           if (failuresBySlaveId(slaveId) >= MAX_SLAVE_FAILURES) {
             logInfo(s"Blacklisting Mesos slave $slaveId due to too many failures; " +
-                "is Spark installed on it?")
+              "is Spark installed on it?")
           }
         }
         executorTerminated(d, slaveId, s"Executor finished with state $state")
@@ -373,11 +389,11 @@ private[spark] class CoarseMesosSchedulerBackend(
   override def frameworkMessage(d: SchedulerDriver, e: ExecutorID, s: SlaveID, b: Array[Byte]) {}
 
   /**
-   * Called when a slave is lost or a Mesos task finished. Update local view on
-   * what tasks are running and remove the terminated slave from the list of pending
-   * slave IDs that we might have asked to be killed. It also notifies the driver
-   * that an executor was removed.
-   */
+    * Called when a slave is lost or a Mesos task finished. Update local view on
+    * what tasks are running and remove the terminated slave from the list of pending
+    * slave IDs that we might have asked to be killed. It also notifies the driver
+    * that an executor was removed.
+    */
   private def executorTerminated(d: SchedulerDriver, slaveId: String, reason: String): Unit = {
     stateLock.synchronized {
       if (slaveIdsWithExecutors.contains(slaveId)) {

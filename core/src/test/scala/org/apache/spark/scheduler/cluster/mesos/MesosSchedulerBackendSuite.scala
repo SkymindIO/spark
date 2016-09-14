@@ -65,13 +65,48 @@ class MesosSchedulerBackendSuite extends SparkFunSuite with LocalSparkContext wi
 
     val resources = Arrays.asList(
       mesosSchedulerBackend.createResource("cpus", 4),
-      mesosSchedulerBackend.createResource("mem", 1024))
+      mesosSchedulerBackend.createResource("mem", 1024),
+      mesosSchedulerBackend.createResource("gpus", 1))
     // uri is null.
     val (executorInfo, _) = mesosSchedulerBackend.createExecutorInfo(resources, "test-id")
     val executorResources = executorInfo.getResourcesList
     val cpus = executorResources.asScala.find(_.getName.equals("cpus")).get.getScalar.getValue
 
     assert(cpus === mesosExecutorCores)
+  }
+
+  test("check gpus") {
+    val conf = new SparkConf
+    conf.set("spark.mesos.executor.home" , "/mesos-home")
+    val listenerBus = mock[LiveListenerBus]
+    listenerBus.post(
+      SparkListenerExecutorAdded(anyLong, "s1", new ExecutorInfo("host1", 2, Map.empty)))
+
+    val sc = mock[SparkContext]
+    when(sc.getSparkHome()).thenReturn(Option("/spark-home"))
+
+    when(sc.conf).thenReturn(conf)
+    when(sc.executorEnvs).thenReturn(new mutable.HashMap[String, String])
+    when(sc.executorMemory).thenReturn(100)
+    when(sc.listenerBus).thenReturn(listenerBus)
+    val taskScheduler = mock[TaskSchedulerImpl]
+    when(taskScheduler.CPUS_PER_TASK).thenReturn(2)
+
+    val mesosSchedulerBackend = new MesosSchedulerBackend(taskScheduler, sc, "master")
+
+    val resources = Arrays.asList(
+      mesosSchedulerBackend.createResource("cpus", 4),
+      mesosSchedulerBackend.createResource("mem", 1024))
+    // uri is null.
+    val (executorInfo, _) = mesosSchedulerBackend.createExecutorInfo(resources, "test-id")
+    assert(executorInfo.getCommand.getValue ===
+      s" /mesos-home/bin/spark-class ${classOf[MesosExecutorBackend].getName}")
+
+    // uri exists.
+    conf.set("spark.executor.uri", "hdfs:///test-app-1.0.0.tgz")
+    val (executorInfo1, _) = mesosSchedulerBackend.createExecutorInfo(resources, "test-id")
+    assert(executorInfo1.getCommand.getValue ===
+      s"cd test-app-1*;  ./bin/spark-class ${classOf[MesosExecutorBackend].getName}")
   }
 
   test("check spark-class location correctly") {
