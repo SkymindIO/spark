@@ -96,6 +96,7 @@ private[spark] class CoarseMesosSchedulerBackend(
   private val stateLock = new ReentrantLock
 
   val extraCoresPerSlave = conf.getInt("spark.mesos.extra.cores", 0)
+  val maxGpus = conf.getInt("spark.mesos.gpus.max", 0)
 
   // Offer constraints
   private val slaveOfferConstraints =
@@ -284,12 +285,20 @@ private[spark] class CoarseMesosSchedulerBackend(
               .addAllResources(cpuResourcesToUse.asJava)
               .addAllResources(memResourcesToUse.asJava)
 
-            val gpus = getResource(offer.getResourcesList, "gpus").toInt
-            if (gpus > 0) {
-              val (_, gpuResourcesToUse) =
-                partitionResources(offer.getResourcesList, "gpus", gpus)
-              taskBuilder.addAllResources(gpuResourcesToUse.asJava)
+            if(maxGpus > 0) {
+              logDebug(s"GPUS $maxGpus")
+              val gpus = getResource(offer.getResourcesList, "gpus").toInt
+              if (gpus > 0) {
+                val (_, gpuResourcesToUse) =
+                  partitionResources(remainingResources.asJava, "gpus", Math.min(maxGpus, gpus))
+                taskBuilder.addAllResources(gpuResourcesToUse.asJava)
+              }
             }
+
+            else {
+              logDebug(s"GPUS NOT BEING USED")
+            }
+
 
 
 
@@ -300,19 +309,24 @@ private[spark] class CoarseMesosSchedulerBackend(
             }
 
 
-
             // Accept the offer and launch the task
             logDebug(s"Accepting offer: $id with attributes: $offerAttributes mem: $mem cpu: $cpus")
+
+
             slaveIdToHost(offer.getSlaveId.getValue) = offer.getHostname
             d.launchTasks(
               Collections.singleton(offer.getId),
               Collections.singleton(taskBuilder.build()), filters)
           } else {
+            val gpus = getResource(offer.getResourcesList, "gpus").toInt
+            logDebug(s"Declining offer max gpus: $maxGpus gpus $gpus")
             // Decline the offer
             logDebug(s"Declining offer: $id with attributes: $offerAttributes mem: $mem cpu: $cpus")
             d.declineOffer(offer.getId)
           }
         } else {
+          val gpus = getResource(offer.getResourcesList, "gpus").toInt
+          logDebug(s"LONG Declining offer max gpus: $maxGpus gpus $gpus")
           // This offer does not meet constraints. We don't need to see it again.
           // Decline the offer for a long period of time.
           logDebug(s"Declining offer: $id with attributes: $offerAttributes mem: $mem cpu: $cpus"

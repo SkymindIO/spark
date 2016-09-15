@@ -86,8 +86,10 @@ private[mesos] trait MesosSchedulerUtils extends Logging {
         "spark.mesos.principal must be configured when spark.mesos.secret is set")
     }
 
-    fwInfoBuilder.addCapabilities(Capability.newBuilder().setType(Capability.Type.GPU_RESOURCES))
-
+    val maxGpus = conf.getInt("spark.mesos.gpus.max", 0)
+    if (maxGpus > 0) {
+      fwInfoBuilder.addCapabilities(Capability.newBuilder().setType(Capability.Type.GPU_RESOURCES))
+    }
 
     conf.getOption("spark.mesos.role").foreach { role =>
       fwInfoBuilder.setRole(role)
