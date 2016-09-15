@@ -242,6 +242,15 @@ private[mesos] trait MesosSchedulerUtils extends Logging {
   def matchesAttributeRequirements(
                                     slaveOfferConstraints: Map[String, Set[String]],
                                     offerAttributes: Map[String, GeneratedMessage]): Boolean = {
+    slaveOfferConstraints.foreach {
+      kv => logDebug("slave key " + kv._1 + " slave value " + kv._2)
+    }
+
+    offerAttributes.foreach {
+      kv => logDebug("offer key " + kv._1 + " offer  value " + kv._2)
+    }
+
+
     slaveOfferConstraints.forall {
       // offer has the required attribute and subsumes the required values for that attribute
       case (name, requiredValues) =>
