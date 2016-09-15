@@ -249,6 +249,8 @@ private[spark] class CoarseMesosSchedulerBackend(
       val filters = Filters.newBuilder().setRefuseSeconds(5).build()
       for (offer <- offers.asScala) {
         val offerAttributes = toAttributeMap(offer.getAttributesList)
+        logDebug(s"Comparing slave offer $slaveOfferConstraints " +
+          s"to offer attributes $offerAttributes")
         val meetsConstraints = matchesAttributeRequirements(slaveOfferConstraints, offerAttributes)
         val slaveId = offer.getSlaveId.getValue
         val mem = getResource(offer.getResourcesList, "mem")
